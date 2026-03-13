@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PropPicker — Property Scoring Tool</title>
+  <title>LPG Acquisition Analysis Tool</title>
+  <link rel="icon" type="image/png" href="loweprop.png">
 
   <!-- SheetJS for reading .xlsx files entirely client-side -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -261,8 +262,8 @@
 <body>
 
 <header class="header">
-  <h1>PropPicker</h1>
-  <p>Upload a property spreadsheet to score and rank investment candidates</p>
+  <h1>LPG Acquisition Analysis Tool</h1>
+  <p>Upload a property spreadsheet to score and rank acquisition candidates</p>
 </header>
 
 <main class="container">
@@ -946,7 +947,7 @@ downloadBtn.addEventListener('click', () => {
 
   const a = document.createElement('a');
   a.href     = url;
-  a.download = 'proppicker_results.csv';
+  a.download = 'lpg_acquisition_results.csv';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

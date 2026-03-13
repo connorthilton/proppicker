@@ -205,8 +205,8 @@
     /* Column widths — property name gets a capped share, numerics share the rest */
     col.col-name     { width: 13%; }
     col.col-narrow   { width: 5%; }
-    col.col-medium   { width: 7%; }
-    col.col-score    { width: 6.5%; }
+    col.col-medium   { width: 6.5%; }
+    col.col-score    { width: 7.5%; }
 
     tbody tr { border-bottom: 1px solid #f8fafc; transition: background 0.1s; }
     tbody tr:hover { background: #f8fafc; }
@@ -786,7 +786,7 @@ const COLUMNS = [
   },
   {
     key: 'totalScore',
-    label: 'Total Score',
+    label: 'Total Weighted Score',
     fmt : v => v.toFixed(1),
     csv : v => v.toFixed(1),
     isTotal: true,

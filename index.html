@@ -156,7 +156,13 @@
       background: white;
       border-radius: 12px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-      overflow: hidden;
+    }
+
+    /* Clip table corners to the card's border-radius without
+       blocking the horizontal scroll on .table-wrapper */
+    .table-wrapper {
+      border-radius: 0 0 12px 12px;
+      overflow-x: auto;
     }
     .results-header {
       display: flex;
@@ -172,22 +178,22 @@
     }
 
     /* ── Table ─────────────────────────────────────────────── */
-    .table-wrapper { overflow-x: auto; }
 
-    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; table-layout: fixed; }
 
     thead th {
       background: #f8fafc;
-      padding: 10px 13px;
+      padding: 8px 10px;
       text-align: left;
       font-weight: 700;
-      font-size: 0.72rem;
+      font-size: 0.68rem;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       color: #64748b;
       border-bottom: 1px solid #e2e8f0;
       cursor: pointer;
       white-space: nowrap;
+      overflow: hidden;
       user-select: none;
       transition: background 0.1s, color 0.1s;
     }
@@ -195,9 +201,18 @@
     thead th.sort-asc::after  { content: " ↑"; color: #3b82f6; }
     thead th.sort-desc::after { content: " ↓"; color: #3b82f6; }
 
+    /* Column widths — property name gets a capped share, numerics share the rest */
+    col.col-name     { width: 13%; }
+    col.col-narrow   { width: 5%; }
+    col.col-medium   { width: 7%; }
+    col.col-score    { width: 6.5%; }
+
     tbody tr { border-bottom: 1px solid #f8fafc; transition: background 0.1s; }
     tbody tr:hover { background: #f8fafc; }
-    tbody td { padding: 10px 13px; color: #374151; white-space: nowrap; }
+    tbody td { padding: 8px 10px; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Property name: truncate long names with ellipsis + tooltip via title attr */
+    td.col-name { font-weight: 500; }
 
     /* Score column styling */
     .score-cell       { font-weight: 600; color: #1e293b; }
@@ -672,7 +687,8 @@ function recomputeScoresAndRender() {
     // Taxes/Revenue ratio: lower is better → invert percentile
     row.taxScore = round1((1 - taxPct) * 10);
 
-    // Weighted composite score
+    // Weighted composite score — sum of each score multiplied by its weight.
+    // Max possible value = 10 × (sum of all weights).
     row.totalScore = round1(
       row.revenueScore * revenueWeight +
       row.vacancyScore * vacancyWeight +
@@ -807,7 +823,23 @@ function renderTable() {
   });
 
   // ── Header row ─────────────────────────────────────────────
-  let html = '<table><thead><tr>';
+  // colgroup drives fixed widths so all columns stay in frame
+  let html = `<table>
+    <colgroup>
+      <col class="col-name">
+      <col class="col-narrow">
+      <col class="col-medium">
+      <col class="col-medium">
+      <col class="col-medium">
+      <col class="col-medium">
+      <col class="col-medium">
+      <col class="col-medium">
+      <col class="col-score">
+      <col class="col-score">
+      <col class="col-score">
+      <col class="col-score">
+    </colgroup>
+    <thead><tr>`;
   for (const col of COLUMNS) {
     let cls = '';
     if (sortState.col === col.key) {
@@ -829,7 +861,8 @@ function renderTable() {
     for (const col of COLUMNS) {
       const val = row[col.key];
       let cellContent = col.fmt(val, row);
-      let cellClass   = '';
+      let cellClass   = col.key === 'name' ? 'col-name' : '';
+      let cellTitle   = col.key === 'name' ? ` title="${escHtml(String(val))}"` : '';
 
       if (col.isTotal) {
         // Colour-coded badge: green / yellow / red by relative score
@@ -840,7 +873,7 @@ function renderTable() {
         cellClass = 'score-cell';
       }
 
-      html += `<td class="${cellClass}">${cellContent}</td>`;
+      html += `<td class="${cellClass}"${cellTitle}>${cellContent}</td>`;
     }
     html += '</tr>';
   }

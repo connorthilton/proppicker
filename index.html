@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PropPicker — Property Scoring Tool</title>
+
+  <!-- SheetJS for reading .xlsx files entirely client-side -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    /* ── Reset & base ──────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    /* ── Header ────────────────────────────────────────────── */
+    .header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: white;
+      padding: 22px 32px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    }
+    .header h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.5px; }
+    .header p  { color: #94a3b8; margin-top: 4px; font-size: 0.875rem; }
+
+    /* ── Page container ────────────────────────────────────── */
+    .container { max-width: 1500px; margin: 0 auto; padding: 28px 32px; }
+
+    /* ── Controls card ─────────────────────────────────────── */
+    .controls {
+      background: white;
+      border-radius: 12px;
+      padding: 24px 28px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+
+    .control-group h3 {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #64748b;
+      margin-bottom: 14px;
+    }
+
+    /* ── File upload ───────────────────────────────────────── */
+    .file-upload-area {
+      border: 2px dashed #e2e8f0;
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .file-upload-area:hover          { border-color: #3b82f6; background: #eff6ff; }
+    .file-upload-area.has-file       { border-color: #22c55e; background: #f0fdf4; }
+    .file-upload-area input          { display: none; }
+    .file-upload-label               { display: block; cursor: pointer; }
+    .file-icon                       { font-size: 2rem; margin-bottom: 6px; }
+    .file-upload-text                { color: #64748b; font-size: 0.875rem; line-height: 1.5; }
+    .file-upload-text strong         { color: #3b82f6; }
+    #filename-display                { margin-top: 8px; font-size: 0.82rem; color: #22c55e; font-weight: 600; }
+
+    /* ── Action row ────────────────────────────────────────── */
+    .actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    /* ── Buttons ───────────────────────────────────────────── */
+    .btn {
+      padding: 9px 22px;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+    }
+    .btn-primary           { background: #3b82f6; color: white; }
+    .btn-primary:hover     { background: #2563eb; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,0.35); }
+    .btn-primary:disabled  { background: #93c5fd; cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn-secondary         { background: white; color: #374151; border: 1.5px solid #e2e8f0; }
+    .btn-secondary:hover   { background: #f8fafc; border-color: #3b82f6; color: #3b82f6; }
+    .btn-secondary:disabled{ opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Status message ────────────────────────────────────── */
+    .status          { font-size: 0.82rem; color: #64748b; }
+    .status.error    { color: #ef4444; }
+    .status.success  { color: #16a34a; }
+
+    /* ── Sliders ───────────────────────────────────────────── */
+    .slider-group { display: flex; flex-direction: column; gap: 18px; }
+
+    .slider-item { display: flex; flex-direction: column; gap: 6px; }
+
+    .slider-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .slider-label { font-size: 0.875rem; font-weight: 500; color: #374151; }
+    .slider-value {
+      font-size: 0.82rem; font-weight: 700;
+      color: #3b82f6;
+      background: #eff6ff;
+      padding: 2px 9px;
+      border-radius: 12px;
+      min-width: 38px;
+      text-align: center;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: #e2e8f0;
+      outline: none;
+      -webkit-appearance: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: #3b82f6;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(59,130,246,0.4);
+      transition: transform 0.1s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+    input[type="range"]::-moz-range-thumb {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: #3b82f6;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 2px 4px rgba(59,130,246,0.4);
+    }
+
+    /* ── Results card ──────────────────────────────────────── */
+    .results-section {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 22px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .results-header h2 { font-size: 0.95rem; font-weight: 700; color: #1e293b; }
+    .results-count {
+      font-size: 0.78rem; color: #64748b;
+      background: #f1f5f9; padding: 3px 10px; border-radius: 10px;
+    }
+
+    /* ── Table ─────────────────────────────────────────────── */
+    .table-wrapper { overflow-x: auto; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+
+    thead th {
+      background: #f8fafc;
+      padding: 10px 13px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      border-bottom: 1px solid #e2e8f0;
+      cursor: pointer;
+      white-space: nowrap;
+      user-select: none;
+      transition: background 0.1s, color 0.1s;
+    }
+    thead th:hover           { background: #f1f5f9; color: #3b82f6; }
+    thead th.sort-asc::after  { content: " ↑"; color: #3b82f6; }
+    thead th.sort-desc::after { content: " ↓"; color: #3b82f6; }
+
+    tbody tr { border-bottom: 1px solid #f8fafc; transition: background 0.1s; }
+    tbody tr:hover { background: #f8fafc; }
+    tbody td { padding: 10px 13px; color: #374151; white-space: nowrap; }
+
+    /* Score column styling */
+    .score-cell       { font-weight: 600; color: #1e293b; }
+    .total-score-cell { font-weight: 700; }
+
+    .score-badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    /* Question mark badge for zero-tax rows */
+    .tax-unknown {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fef9c3;
+      border: 1px solid #fde047;
+      color: #854d0e;
+      font-size: 0.65rem;
+      font-weight: 700;
+      margin-left: 5px;
+      cursor: help;
+      vertical-align: middle;
+      line-height: 1;
+    }
+
+    /* ── Empty / loading states ────────────────────────────── */
+    .empty-state { padding: 56px 24px; text-align: center; color: #94a3b8; }
+    .empty-state .empty-icon { font-size: 2.8rem; margin-bottom: 10px; }
+    .empty-state p { font-size: 0.875rem; line-height: 1.6; }
+
+    /* ── Responsive tweaks ─────────────────────────────────── */
+    @media (max-width: 768px) {
+      .controls { grid-template-columns: 1fr; }
+      .container { padding: 16px; }
+    }
+  </style>
+</head>
+
+<body>
+
+<header class="header">
+  <h1>PropPicker</h1>
+  <p>Upload a property spreadsheet to score and rank investment candidates</p>
+</header>
+
+<main class="container">
+
+  <!-- ── Controls ─────────────────────────────────────────── -->
+  <div class="controls">
+
+    <!-- Left column: file upload + action buttons -->
+    <div class="control-group">
+      <h3>Data Source</h3>
+
+      <div class="file-upload-area" id="drop-zone">
+        <label class="file-upload-label" for="file-input">
+          <div class="file-icon">📂</div>
+          <div class="file-upload-text">
+            <strong>Click to upload</strong> or drag &amp; drop<br>
+            <span>.xlsx files only</span>
+          </div>
+          <div id="filename-display"></div>
+        </label>
+        <input type="file" id="file-input" accept=".xlsx">
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary"   id="process-btn"  disabled>Process File</button>
+        <button class="btn btn-secondary" id="download-btn" disabled>⬇ Download CSV</button>
+        <span class="status" id="status-msg"></span>
+      </div>
+    </div>
+
+    <!-- Right column: scoring weight sliders -->
+    <div class="control-group">
+      <h3>Scoring Weights</h3>
+      <div class="slider-group">
+
+        <div class="slider-item">
+          <div class="slider-label-row">
+            <span class="slider-label">Revenue per Unit Weight</span>
+            <span class="slider-value" id="revenue-weight-val">1.0</span>
+          </div>
+          <input type="range" id="revenue-weight" min="0" max="5" step="0.1" value="1">
+        </div>
+
+        <div class="slider-item">
+          <div class="slider-label-row">
+            <span class="slider-label">Occupancy Weight</span>
+            <span class="slider-value" id="vacancy-weight-val">1.0</span>
+          </div>
+          <input type="range" id="vacancy-weight" min="0" max="5" step="0.1" value="1">
+        </div>
+
+        <div class="slider-item">
+          <div class="slider-label-row">
+            <span class="slider-label">Taxes / Revenue Weight</span>
+            <span class="slider-value" id="tax-weight-val">1.0</span>
+          </div>
+          <input type="range" id="tax-weight" min="0" max="5" step="0.1" value="1">
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /controls -->
+
+  <!-- ── Results ───────────────────────────────────────────── -->
+  <div class="results-section">
+    <div class="results-header">
+      <h2>Results</h2>
+      <span class="results-count" id="results-count">No data loaded</span>
+    </div>
+    <div class="table-wrapper">
+      <div id="table-container">
+        <div class="empty-state">
+          <div class="empty-icon">📊</div>
+          <p>Upload an Excel file and click <strong>Process File</strong> to see results.<br>
+             Only rows where <code>Building Status</code> equals <em>"Existing"</em> are scored.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ================================================================
+// STATE
+// ================================================================
+
+/** The raw File object selected by the user. */
+let uploadedFile = null;
+
+/**
+ * Array of processed row objects. Each object holds the computed
+ * metrics AND scores so we can re-score on slider change without
+ * re-reading the file.
+ */
+let processedRows = [];
+
+/** Current sort column key and direction. */
+let sortState = { col: 'totalScore', dir: 'desc' };
+
+
+// ================================================================
+// FIELD NAMES
+// All keys are the lowercase-trimmed versions of what we expect
+// to find as column headers in row 1 of the spreadsheet.
+// ================================================================
+
+// Keys are the lowercase-trimmed versions of the actual spreadsheet headers.
+const FIELDS = {
+  rentStudio : 'studio effective rent/unit',
+  rent1bd    : 'one bedroom effective rent/unit',
+  rent2bd    : 'two bedroom effective rent/unit',
+  rent3bd    : 'three bedroom effective rent/unit',
+  rent4bd    : 'four bedroom effective rent/unit',
+  vacancy    : 'vacancy %',
+  units      : 'number of units',
+  taxes      : 'taxes total',
+  dm         : 'building status',   // "Existing" / "Proposed" / "Under Construction"
+};
+
+/**
+ * Candidate column headers for the property's display name.
+ * Checked in order; first match wins.
+ */
+const NAME_FIELD_CANDIDATES = [
+  'property name', 'property_name', 'propertyname', 'property', 'name', 'prop_name', 'address'
+];
+
+
+// ================================================================
+// DOM REFERENCES
+// ================================================================
+
+const fileInput       = document.getElementById('file-input');
+const dropZone        = document.getElementById('drop-zone');
+const filenameDisplay = document.getElementById('filename-display');
+const processBtn      = document.getElementById('process-btn');
+const downloadBtn     = document.getElementById('download-btn');
+const statusMsg       = document.getElementById('status-msg');
+const tableContainer  = document.getElementById('table-container');
+const resultsCount    = document.getElementById('results-count');
+
+const revenueSlider   = document.getElementById('revenue-weight');
+const vacancySlider   = document.getElementById('vacancy-weight');
+const taxSlider       = document.getElementById('tax-weight');
+
+const revenueValEl    = document.getElementById('revenue-weight-val');
+const vacancyValEl    = document.getElementById('vacancy-weight-val');
+const taxValEl        = document.getElementById('tax-weight-val');
+
+
+// ================================================================
+// SLIDER LISTENERS
+// Update the displayed value and, if data is loaded, re-score live.
+// ================================================================
+
+revenueSlider.addEventListener('input', () => {
+  revenueValEl.textContent = parseFloat(revenueSlider.value).toFixed(1);
+  if (processedRows.length > 0) recomputeScoresAndRender();
+});
+
+vacancySlider.addEventListener('input', () => {
+  vacancyValEl.textContent = parseFloat(vacancySlider.value).toFixed(1);
+  if (processedRows.length > 0) recomputeScoresAndRender();
+});
+
+taxSlider.addEventListener('input', () => {
+  taxValEl.textContent = parseFloat(taxSlider.value).toFixed(1);
+  if (processedRows.length > 0) recomputeScoresAndRender();
+});
+
+
+// ================================================================
+// FILE UPLOAD — click and drag-and-drop
+// ================================================================
+
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) handleFileSelected(file);
+});
+
+dropZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropZone.style.borderColor = '#3b82f6';
+  dropZone.style.background  = '#eff6ff';
+});
+
+dropZone.addEventListener('dragleave', () => {
+  if (!uploadedFile) {
+    dropZone.style.borderColor = '';
+    dropZone.style.background  = '';
+  }
+});
+
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.toLowerCase().endsWith('.xlsx')) {
+    handleFileSelected(file);
+  } else {
+    setStatus('Please drop a .xlsx file.', 'error');
+  }
+});
+
+function handleFileSelected(file) {
+  uploadedFile = file;
+  filenameDisplay.textContent = file.name;
+  dropZone.classList.add('has-file');
+  processBtn.disabled = false;
+  setStatus('');
+}
+
+
+// ================================================================
+// PROCESS FILE
+// Reads the xlsx with SheetJS and kicks off row processing.
+// ================================================================
+
+processBtn.addEventListener('click', () => {
+  if (!uploadedFile) return;
+  setStatus('Reading file…', '');
+  processBtn.disabled = true;
+
+  const reader = new FileReader();
+
+  reader.onload = (e) => {
+    try {
+      const data     = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+
+      // Use the first sheet in the workbook
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+
+      // Convert to an array of objects. Row 1 becomes the keys.
+      // raw: true → numbers stay as JS numbers (not formatted strings)
+      // defval: null → missing cells are null (not undefined)
+      const rows = XLSX.utils.sheet_to_json(worksheet, { defval: null, raw: true });
+
+      processRows(rows);
+    } catch (err) {
+      setStatus('Error reading file: ' + err.message, 'error');
+      console.error(err);
+    } finally {
+      processBtn.disabled = false;
+    }
+  };
+
+  reader.onerror = () => {
+    setStatus('Failed to read file.', 'error');
+    processBtn.disabled = false;
+  };
+
+  reader.readAsArrayBuffer(uploadedFile);
+});
+
+
+// ================================================================
+// ROW PROCESSING
+// Filters, cleans, and computes metrics for every valid row.
+// ================================================================
+
+function processRows(rawRows) {
+  processedRows = [];
+  let skippedCount = 0;
+
+  // ── Detect property name field (optional) ──────────────────
+  // Look at the first row's keys to find a matching candidate.
+  let nameField = null;
+  if (rawRows.length > 0) {
+    const firstRowKeys = Object.keys(rawRows[0]);
+    for (const candidate of NAME_FIELD_CANDIDATES) {
+      const match = firstRowKeys.find(k => k.toLowerCase().trim() === candidate);
+      if (match) { nameField = match; break; }
+    }
+  }
+
+  // ── Iterate rows ───────────────────────────────────────────
+  for (let i = 0; i < rawRows.length; i++) {
+    const raw = rawRows[i];
+
+    // Normalise all keys to lowercase + trimmed for reliable lookup
+    const row = {};
+    for (const [k, v] of Object.entries(raw)) {
+      row[k.toLowerCase().trim()] = v;
+    }
+
+    // ── 1. Filter: only process "existing" properties ──────
+    const dmVal = row[FIELDS.dm];
+    if (!dmVal || String(dmVal).toLowerCase().trim() !== 'existing') {
+      skippedCount++;
+      continue;
+    }
+
+    // ── 2. Collect valid rent values ───────────────────────
+    const rentKeys   = [FIELDS.rentStudio, FIELDS.rent1bd, FIELDS.rent2bd,
+                        FIELDS.rent3bd, FIELDS.rent4bd];
+    const validRents = rentKeys
+      .map(f => row[f])
+      .filter(v => v !== null && v !== undefined && v !== '' && !isNaN(Number(v)) && Number(v) > 0)
+      .map(Number);
+
+    // Skip rows with no valid rent data
+    if (validRents.length === 0) { skippedCount++; continue; }
+
+    // ── 3. Validate number_of_units ────────────────────────
+    const unitsRaw = row[FIELDS.units];
+    if (unitsRaw === null || unitsRaw === undefined || unitsRaw === ''
+        || isNaN(Number(unitsRaw)) || Number(unitsRaw) <= 0) {
+      skippedCount++;
+      continue;
+    }
+    const units = Number(unitsRaw);
+
+    // ── 4. Vacancy (normalise percentage → decimal) ────────
+    let vacancy = row[FIELDS.vacancy];
+    vacancy = (vacancy !== null && vacancy !== undefined && vacancy !== '' && !isNaN(Number(vacancy)))
+      ? Number(vacancy)
+      : 0;
+    if (vacancy > 1) vacancy = vacancy / 100;   // e.g. 5 → 0.05
+
+    // ── 5. Taxes (default 0 if missing) ───────────────────
+    const taxesRaw = row[FIELDS.taxes];
+    const taxes = (taxesRaw !== null && taxesRaw !== undefined && taxesRaw !== ''
+                   && !isNaN(Number(taxesRaw)))
+      ? Number(taxesRaw)
+      : 0;
+
+    // ── 6. Core calculations ───────────────────────────────
+    // Average effective rent across all valid rent columns
+    const avgRent = validRents.reduce((a, b) => a + b, 0) / validRents.length;
+
+    // Revenue per unit accounts for vacancy drag
+    const revenuePerUnit = (1 - vacancy) * avgRent;
+
+    // Total annual (or monthly — matches the rent unit) revenue
+    const totalRevenue = revenuePerUnit * units;
+
+    // Skip rows where computed revenue is zero (prevents ÷0 below)
+    if (totalRevenue === 0) { skippedCount++; continue; }
+
+    // Tax burden relative to total revenue
+    const taxesRevenueRatio = taxes / totalRevenue;
+
+    // ── 7. Property name ───────────────────────────────────
+    // Use original casing key so the raw value is read correctly.
+    let propertyName = nameField ? raw[nameField] : null;
+    if (!propertyName) propertyName = `Row ${i + 2}`; // +2: row 1 = headers
+
+    // Scores will be assigned in the percentile step below
+    processedRows.push({
+      name             : String(propertyName),
+      units,
+      vacancy,
+      avgRent,
+      revenuePerUnit,
+      totalRevenue,
+      taxes,
+      taxesRevenueRatio,
+      revenueScore     : 0,
+      vacancyScore     : 0,
+      taxScore         : 0,
+      totalScore       : 0,
+    });
+  }
+
+  if (processedRows.length === 0) {
+    setStatus(`No valid rows found (${skippedCount} rows skipped).`, 'error');
+    renderEmptyState('No valid rows found. Make sure your file contains rows where <code>Building Status</code> equals <em>"Existing"</em> and all required fields are populated.');
+    return;
+  }
+
+  // Assign percentile-based scores and render
+  recomputeScoresAndRender();
+  setStatus(
+    `Loaded ${processedRows.length} propert${processedRows.length === 1 ? 'y' : 'ies'}`
+    + (skippedCount ? ` · ${skippedCount} rows skipped` : ''),
+    'success'
+  );
+}
+
+
+// ================================================================
+// PERCENTILE SCORING
+// Called once after processing and again whenever a slider moves.
+// processedRows already has the raw metrics; this only updates scores.
+// ================================================================
+
+function recomputeScoresAndRender() {
+  const n = processedRows.length;
+
+  // ── Build sorted arrays for each metric ───────────────────
+  // Sorted ascending so index 0 = worst, index n-1 = best (for revenue)
+  const sortedRevenue   = processedRows.map(r => r.revenuePerUnit).sort((a, b) => a - b);
+  // Occupancy = 1 − vacancy; sort ascending so higher occupancy = higher percentile = higher score
+  const sortedOccupancy = processedRows.map(r => 1 - r.vacancy).sort((a, b) => a - b);
+  const sortedTax       = processedRows.map(r => r.taxesRevenueRatio).sort((a, b) => a - b);
+
+  // ── Read current weight values from sliders ────────────────
+  const revenueWeight = parseFloat(revenueSlider.value);
+  const vacancyWeight = parseFloat(vacancySlider.value);
+  const taxWeight     = parseFloat(taxSlider.value);
+
+  for (const row of processedRows) {
+    // Percentile rank = position in sorted array ÷ (n − 1)
+    // For a single row, use 0.5 (mid-range) to avoid ÷0.
+    const revIdx = sortedRevenue.indexOf(row.revenuePerUnit);
+    const occIdx = sortedOccupancy.indexOf(1 - row.vacancy);
+    const taxIdx = sortedTax.indexOf(row.taxesRevenueRatio);
+
+    const revPct = n > 1 ? revIdx / (n - 1) : 0.5;
+    const occPct = n > 1 ? occIdx / (n - 1) : 0.5;
+    const taxPct = n > 1 ? taxIdx / (n - 1) : 0.5;
+
+    // Revenue per unit: higher is better → score scales with percentile
+    row.revenueScore = round1(revPct * 10);
+
+    // Occupancy (1 − vacancy): higher is better → score scales with percentile
+    row.vacancyScore = round1(occPct * 10);
+
+    // Taxes/Revenue ratio: lower is better → invert percentile
+    row.taxScore = round1((1 - taxPct) * 10);
+
+    // Weighted composite score
+    row.totalScore = round1(
+      row.revenueScore * revenueWeight +
+      row.vacancyScore * vacancyWeight +
+      row.taxScore     * taxWeight
+    );
+  }
+
+  // Reset sort to totalScore descending so the best deal surfaces first
+  sortState = { col: 'totalScore', dir: 'desc' };
+  renderTable();
+  downloadBtn.disabled = false;
+  resultsCount.textContent = `${n} propert${n === 1 ? 'y' : 'ies'}`;
+}
+
+/** Round to one decimal place. */
+function round1(v) { return Math.round(v * 10) / 10; }
+
+
+// ================================================================
+// TABLE COLUMN DEFINITIONS
+// Each entry drives both rendering and CSV export.
+// ================================================================
+
+const COLUMNS = [
+  {
+    key: 'name',
+    label: 'Property',
+    // String values: return as-is for display; for CSV wrap in quotes
+    fmt : v => escHtml(v),
+    csv : v => `"${String(v).replace(/"/g, '""')}"`,
+  },
+  {
+    key: 'units',
+    label: 'Units',
+    fmt : v => v.toLocaleString(),
+    csv : v => v,
+  },
+  {
+    key: 'vacancy',
+    label: 'Vacancy',
+    fmt : v => (v * 100).toFixed(1) + '%',
+    csv : v => (v * 100).toFixed(4),
+  },
+  {
+    key: 'avgRent',
+    label: 'Avg Rent',
+    fmt : v => '$' + fmtNum(v),
+    csv : v => v.toFixed(2),
+  },
+  {
+    key: 'revenuePerUnit',
+    label: 'Revenue / Unit',
+    fmt : v => '$' + fmtNum(v),
+    csv : v => v.toFixed(2),
+  },
+  {
+    key: 'totalRevenue',
+    label: 'Total Revenue',
+    fmt : v => '$' + fmtNum(v),
+    csv : v => v.toFixed(2),
+  },
+  {
+    key: 'taxes',
+    label: 'Taxes Total',
+    fmt : (v, row) => '$' + fmtNum(v) + (row.taxes === 0 ? '<span class="tax-unknown" title="Tax figure is $0 — may require additional inquiry to confirm accuracy">?</span>' : ''),
+    csv : v => v.toFixed(2),
+  },
+  {
+    key: 'taxesRevenueRatio',
+    label: 'Taxes / Revenue',
+    fmt : (v, row) => (v * 100).toFixed(2) + '%' + (row.taxes === 0 ? '<span class="tax-unknown" title="Tax figure is $0 — may require additional inquiry to confirm accuracy">?</span>' : ''),
+    csv : v => (v * 100).toFixed(4),
+  },
+  {
+    key: 'revenueScore',
+    label: 'Revenue Score',
+    fmt : v => v.toFixed(1),
+    csv : v => v.toFixed(1),
+    isScore: true,
+  },
+  {
+    key: 'vacancyScore',
+    label: 'Occupancy Score',
+    fmt : v => v.toFixed(1),
+    csv : v => v.toFixed(1),
+    isScore: true,
+  },
+  {
+    key: 'taxScore',
+    label: 'Tax Score',
+    fmt : v => v.toFixed(1),
+    csv : v => v.toFixed(1),
+    isScore: true,
+  },
+  {
+    key: 'totalScore',
+    label: 'Total Score',
+    fmt : v => v.toFixed(1),
+    csv : v => v.toFixed(1),
+    isTotal: true,
+  },
+];
+
+/** Format a number with comma thousands separators and no decimals. */
+function fmtNum(v) {
+  return v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+/** Minimal HTML escaping to prevent XSS from property names. */
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+
+// ================================================================
+// TABLE RENDERING
+// ================================================================
+
+function renderTable() {
+  // Sort a copy of processedRows — never mutate the canonical array
+  const sorted = [...processedRows].sort((a, b) => {
+    const v1 = a[sortState.col];
+    const v2 = b[sortState.col];
+    if (typeof v1 === 'string') {
+      return sortState.dir === 'asc' ? v1.localeCompare(v2) : v2.localeCompare(v1);
+    }
+    return sortState.dir === 'asc' ? v1 - v2 : v2 - v1;
+  });
+
+  // ── Header row ─────────────────────────────────────────────
+  let html = '<table><thead><tr>';
+  for (const col of COLUMNS) {
+    let cls = '';
+    if (sortState.col === col.key) {
+      cls = sortState.dir === 'asc' ? 'sort-asc' : 'sort-desc';
+    }
+    html += `<th class="${cls}" data-key="${col.key}">${col.label}</th>`;
+  }
+  html += '</tr></thead><tbody>';
+
+  // ── Data rows ──────────────────────────────────────────────
+  // Compute max possible total score for colour-coding the badge
+  const maxPossibleScore =
+    (parseFloat(revenueSlider.value) +
+     parseFloat(vacancySlider.value) +
+     parseFloat(taxSlider.value)) * 10;
+
+  for (const row of sorted) {
+    html += '<tr>';
+    for (const col of COLUMNS) {
+      const val = row[col.key];
+      let cellContent = col.fmt(val, row);
+      let cellClass   = '';
+
+      if (col.isTotal) {
+        // Colour-coded badge: green / yellow / red by relative score
+        cellClass = 'total-score-cell';
+        const palette = scorePalette(val, maxPossibleScore);
+        cellContent = `<span class="score-badge" style="background:${palette.bg};color:${palette.fg}">${cellContent}</span>`;
+      } else if (col.isScore) {
+        cellClass = 'score-cell';
+      }
+
+      html += `<td class="${cellClass}">${cellContent}</td>`;
+    }
+    html += '</tr>';
+  }
+
+  html += '</tbody></table>';
+  tableContainer.innerHTML = html;
+
+  // ── Attach sort click handlers ─────────────────────────────
+  tableContainer.querySelectorAll('th[data-key]').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.getAttribute('data-key');
+      if (sortState.col === key) {
+        // Toggle direction on repeated clicks
+        sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortState.col = key;
+        sortState.dir = 'desc';
+      }
+      renderTable();
+    });
+  });
+}
+
+/**
+ * Returns a background/foreground colour pair based on how the
+ * total score sits within the possible range.
+ *   top third    → green
+ *   middle third → yellow
+ *   bottom third → red
+ */
+function scorePalette(val, maxScore) {
+  if (maxScore === 0) return { bg: '#f1f5f9', fg: '#475569' };
+  const pct = val / maxScore;
+  if (pct >= 0.67) return { bg: '#dcfce7', fg: '#166534' };
+  if (pct >= 0.33) return { bg: '#fef9c3', fg: '#713f12' };
+  return { bg: '#fee2e2', fg: '#991b1b' };
+}
+
+function renderEmptyState(message) {
+  tableContainer.innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">📭</div>
+      <p>${message}</p>
+    </div>`;
+  resultsCount.textContent = 'No data';
+  downloadBtn.disabled = true;
+}
+
+
+// ================================================================
+// CSV EXPORT
+// ================================================================
+
+downloadBtn.addEventListener('click', () => {
+  if (processedRows.length === 0) return;
+
+  // Build header row from column labels
+  const headerRow = COLUMNS.map(c => `"${c.label}"`).join(',');
+
+  // Build data rows using each column's csv() formatter
+  const dataRows = processedRows.map(row =>
+    COLUMNS.map(col => col.csv(row[col.key])).join(',')
+  );
+
+  // UTF-8 BOM (\uFEFF) helps Excel detect encoding correctly
+  const csvContent = '\uFEFF' + [headerRow, ...dataRows].join('\r\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href     = url;
+  a.download = 'proppicker_results.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+
+// ================================================================
+// UTILITY
+// ================================================================
+
+function setStatus(msg, type = '') {
+  statusMsg.textContent = msg;
+  statusMsg.className   = 'status ' + type;
+}
+</script>
+
+</body>
+</html>
